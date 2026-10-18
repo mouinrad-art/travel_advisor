@@ -77,13 +77,12 @@ class Session:
     preferences: TripPreferences = field(default_factory=TripPreferences)
     itinerary: Optional[Itinerary] = None
     metrics: Metrics = field(default_factory=Metrics)
-    
+
+class Advisor:
     def __init__(self, client=None, intake_model=None, planner_model=None):
         self.client = client if client is not None else OpenAI(api_key=os.environ['OPENAI_API_KEY'].strip())
         self.intake_model = intake_model or os.getenv('CHAT_MODEL','gpt-4.1-mini')
         self.planner_model = planner_model or os.getenv('PLANNER_MODEL','gpt-4.1')
-
-class Advisor:
 
     def _parse(self, model, schema, instructions, payload, session):
         started=time.perf_counter()

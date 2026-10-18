@@ -32,18 +32,26 @@ class handler(BaseHTTPRequestHandler):
             saved = payload.get('session') or {}
             if not isinstance(saved, dict):
                 return self.respond(400, {'error': 'Invalid session.'})
-            history = saved.get('history', [])
+            history = saved.get('history') or []
             if not isinstance(history, list) or len(history) > 24:
                 return self.respond(400, {'error': 'Invalid history length.'})
             history = [h for h in history if isinstance(h, dict) and h.get('role') in ('user', 'assistant') and isinstance(h.get('content'), str) and len(h['content']) <= 3000]
             raw_metrics = saved.get('metrics') or {}
             if not isinstance(raw_metrics, dict):
                 raw_metrics = {}
+            # Browser sessions are untrusted and may contain missing or null fields.
+            # Only use bounded numeric metrics; default missing values to zero.
+            safe_metrics = {}
+            for key in ('input_tokens', 'output_tokens', 'calls', 'latency_seconds'):
+                value = raw_metrics.get(key, 0)
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 or value > 1_000_000_000:
+                    value = 0
+                safe_metrics[key] = value
             session = Session(
                 history=history,
                 summary=str(saved.get('summary') or '')[:5000],
                 preferences=TripPreferences.model_validate(saved.get('preferences') or {}),
-                metrics=Metrics(**{k: raw_metrics.get(k, 0) for k in ('input_tokens','output_tokens','calls','latency_seconds')})
+                metrics=Metrics(**safe_metrics)
             )
             if not os.getenv('OPENAI_API_KEY', '').strip():
                 log.error('OPENAI_API_KEY missing in this Vercel deployment')
@@ -52,9 +60,26 @@ class handler(BaseHTTPRequestHandler):
             state = {'history': session.history[-24:], 'summary': session.summary,
                      'preferences': session.preferences.model_dump(), 'metrics': vars(session.metrics)}
             return self.respond(200, {'reply': reply, 'itinerary': plan.model_dump() if plan else None, 'session': state})
-        except Exception as e:
-            print(e)
-            log.console(e)
+        except AuthenticationError:
+            log.exception('OpenAI authentication rejected (401). Check Vercel OPENAI_API_KEY and deployment environment.')
+            return self.respond(502, {'error': 'OpenAI authentication failed. Check the API key configured in Vercel, then redeploy.'})
+        except PermissionDeniedError:
+            log.exception('OpenAI API permission denied')
+            return self.respond(502, {'error': 'OpenAI API access denied. Check API key permissions and project.'})
+        except RateLimitError:
+            log.exception('OpenAI rate limit or insufficient quota')
+            return self.respond(503, {'error': 'OpenAI rate limit or quota reached. Check API billing and limits.'})
+        except (APITimeoutError, APIConnectionError):
+            log.exception('OpenAI connection or timeout failure')
+            return self.respond(503, {'error': 'OpenAI is temporarily unreachable. Try again.'})
+        except BadRequestError:
+            log.exception('OpenAI rejected request or model')
+            return self.respond(502, {'error': 'The AI model request was rejected. Check model names and API permissions.'})
+        except (ValueError, ValidationError, TypeError, KeyError, json.JSONDecodeError):
+            log.exception('Invalid input or model output')
+            return self.respond(400, {'error': 'Invalid input or itinerary. Please revise your request.'})
+        except Exception:
+            log.exception('Unexpected backend error')
             return self.respond(500, {'error': 'Unexpected server error. Check Vercel function logs.'})
 
     def respond(self, status, body):
