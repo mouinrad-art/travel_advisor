@@ -52,26 +52,9 @@ class handler(BaseHTTPRequestHandler):
             state = {'history': session.history[-24:], 'summary': session.summary,
                      'preferences': session.preferences.model_dump(), 'metrics': vars(session.metrics)}
             return self.respond(200, {'reply': reply, 'itinerary': plan.model_dump() if plan else None, 'session': state})
-        except AuthenticationError:
-            log.exception('OpenAI authentication rejected (401). Check Vercel OPENAI_API_KEY and deployment environment.')
-            return self.respond(502, {'error': 'OpenAI authentication failed. Check the API key configured in Vercel, then redeploy.'})
-        except PermissionDeniedError:
-            log.exception('OpenAI API permission denied')
-            return self.respond(502, {'error': 'OpenAI API access denied. Check API key permissions and project.'})
-        except RateLimitError:
-            log.exception('OpenAI rate limit or insufficient quota')
-            return self.respond(503, {'error': 'OpenAI rate limit or quota reached. Check API billing and limits.'})
-        except (APITimeoutError, APIConnectionError):
-            log.exception('OpenAI connection or timeout failure')
-            return self.respond(503, {'error': 'OpenAI is temporarily unreachable. Try again.'})
-        except BadRequestError:
-            log.exception('OpenAI rejected request or model')
-            return self.respond(502, {'error': 'The AI model request was rejected. Check model names and API permissions.'})
-        except (ValueError, ValidationError, TypeError, KeyError, json.JSONDecodeError):
-            log.exception('Invalid input or model output')
-            return self.respond(400, {'error': 'Invalid input or itinerary. Please revise your request.'})
-        except Exception:
-            log.exception('Unexpected backend error')
+        except Exception as e:
+            print(e)
+            log.console(e)
             return self.respond(500, {'error': 'Unexpected server error. Check Vercel function logs.'})
 
     def respond(self, status, body):
