@@ -1,45 +1,64 @@
-# AI Travel Advisor — Vercel Edition
+# AI Travel Advisor v3 — Vercel Edition
 
-A stateless, serverless deployment of the original Python OpenAI Responses API travel advisor. Includes a responsive HTML/JavaScript frontend and Python API endpoint.
+Python OpenAI Responses API + static browser UI. Includes conversational intake, structured travel plans, memory, budgets, downloads, diagnostics and a Jupyter notebook.
 
-## Vercel deployment
+## Repository layout
 
-1. Create a GitHub repository and push the contents of **this directory** to the repository root. Never commit `.env` or API keys.
-2. Open https://vercel.com/new and import the repository.
-3. Select **Other** as the framework preset if asked. Set the root directory to the directory containing `vercel.json` (normally `./`). Do not configure a build command.
-4. Under **Environment Variables**, add `OPENAI_API_KEY` (required), `CHAT_MODEL=gpt-4.1-mini` and `PLANNER_MODEL=gpt-4.1` (optional). Add these for the Production environment (and Preview if needed).
-5. Click **Deploy**, then visit your generated `.vercel.app` URL. Send a message to test the `/api/chat` function.
-6. After changing environment variables, redeploy the project.
-
-## Local testing
-
-Install Vercel CLI (`npm i -g vercel`) and dependencies (`pip install -r requirements.txt`), then:
-
-```bash
-vercel login
-vercel link
-vercel env pull .env.local
-vercel dev
+```text
+api/chat.py                 Vercel Python endpoint
+core.py                     Shared AI engine and Pydantic schemas
+public/index.html           Chat UI
+public/favicon.svg          Browser icon
+vercel.json                  Vercel routing
+requirements.txt            Production Python dependencies
+Travel_Advisor_Notebook.ipynb  Experiment with core engine
+.env.example                Local environment template
 ```
 
-Open the URL printed by Vercel CLI (typically http://localhost:3000). You can also add the environment variables in the Vercel dashboard before pulling them.
+## Local setup
 
-## Features
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env  # Windows: copy .env.example .env
+```
 
-- Follow-up questions until destination, duration and interests are present
-- Contradiction clarification, trip constraints, budget and travel pace
-- Structured itinerary with day plans, budget, tips and assumptions
-- Separate configurable intake and planner models
-- Token usage and latency metrics returned by API
-- JSON itinerary export, responsive interface, new-trip reset
-- No server-side session persistence; session state is sent with each request
+Set `OPENAI_API_KEY` in `.env`. Never commit it. For notebook usage, the notebook loads `.env` locally. For local API testing, run `vercel dev` (requires Vercel CLI: `npm i -g vercel`).
 
-## Important deployment considerations
+## Deploy on Vercel
 
-- Serverless execution has a maximum duration determined by the Vercel plan. Two sequential LLM calls may time out; choose fast models and check Function logs.
-- The browser sends the conversation state with each request. This is convenient but **not tamper-proof**. For production, store state server-side in a database, validate state transitions, and add authentication.
-- Add per-user rate limiting and spending caps before making this a public paid-API demo.
-- Avoid logging personal trip details or API keys.
-- Prices, opening hours and availability are not live-verified.
-- A long chat may increase payload size and token cost; the original engine summarizes when history exceeds its threshold.
-- The original Jupyter notebook and Streamlit UI are separate developer experiences; Vercel hosts this web UI instead.
+1. Extract ZIP, upload **contents** to the GitHub repository root (not a nested directory unless explicitly configured).
+2. Ensure `vercel.json`, `api/`, `public/`, `core.py` and `requirements.txt` are all visible at the same GitHub root.
+3. In Vercel, import your repository, Framework Preset **Other**.
+4. **Root Directory**: leave default / repository root. Never enter `vercel.json` (it is a file).
+5. **Build Command**: leave default. **Output Directory**: leave default.
+6. In Project Settings → Environment Variables set `OPENAI_API_KEY`, `CHAT_MODEL=gpt-4.1-mini`, `PLANNER_MODEL=gpt-4.1` for **Production** and **Preview** if needed.
+7. Save and **redeploy**. Test the **new** deployment URL, not an older preview.
+8. Open `https://YOUR_DEPLOYMENT.vercel.app/api/chat` in a browser. It returns a status JSON with `api_key_configured` boolean but never the key itself.
+9. Visit the site, enter `5 days in Tunisia, beaches and food`, then check the resulting itinerary.
+
+## 401 locally works but Vercel fails
+
+- A `401 Unauthorized` from OpenAI means the deployed function sent credentials that OpenAI rejected.
+- Check `OPENAI_API_KEY` spelling, whitespace, correct project and environment scope.
+- Check the deployment **Environment** (Production vs Preview) in Vercel.
+- Redeploy after updating secrets. Old deployments can retain older environment configuration.
+- Test `/api/chat` with GET to confirm the key exists (not that it is valid).
+- Check Vercel → Logs for the full exception. This version returns an actionable `502` message rather than a generic `500` for authentication errors.
+- Avoid exposing or logging API keys. Rotate a key if it was ever committed or disclosed.
+
+## Testing
+
+```bash
+pytest -q
+```
+
+## Security and limitations
+
+- OpenAI API calls happen on the server. The browser never receives the API key.
+- Conversation state is sent from the browser and is **not authenticated or tamper-proof**. For public deployment use server-side session storage, authentication, rate limiting, bot protection and per-user spend limits.
+- No live travel availability, weather or fares are queried. All budgets are estimates.
+- Token usage is approximate across sessions and can be reset by clients. For billing, aggregate usage server-side.
+- API key must be an OpenAI Platform API key with appropriate project permissions and billing.

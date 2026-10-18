@@ -80,7 +80,7 @@ class Session:
 
 class Advisor:
     def __init__(self, client=None, intake_model=None, planner_model=None):
-        self.client = client or OpenAI()
+        self.client = client if client is not None else OpenAI(api_key=os.environ['OPENAI_API_KEY'].strip())
         self.intake_model = intake_model or os.getenv('CHAT_MODEL','gpt-4.1-mini')
         self.planner_model = planner_model or os.getenv('PLANNER_MODEL','gpt-4.1')
 
@@ -102,7 +102,7 @@ class Advisor:
         if not message or len(message)>2500:
             raise ValueError('Enter a message between 1 and 2500 characters.')
         session.history.append({'role':'user','content':message})
-        if len(session.history)>24:
+        if len(session.history)>20:
             self.summarize(session)
         instructions=(
           'You are a travel intake assistant. Extract preferences using all prior conversation and existing '

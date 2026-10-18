@@ -1,6 +1,8 @@
 .env
-.env.local
-.venv/
+.env.*
+!.env.example
 __pycache__/
-.vercel/
+.pytest_cache/
 .ipynb_checkpoints/
+.venv/
+.vercel/
