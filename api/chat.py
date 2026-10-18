@@ -39,7 +39,12 @@ class handler(BaseHTTPRequestHandler):
             raw_metrics = saved.get('metrics') or {}
             if not isinstance(raw_metrics, dict):
                 raw_metrics = {}
-            session = Advisor()
+            session = Session(
+                history=history,
+                summary=str(saved.get('summary') or '')[:5000],
+                preferences=TripPreferences.model_validate(saved.get('preferences') or {}),
+                metrics=Metrics(**{k: raw_metrics.get(k, 0) for k in ('input_tokens','output_tokens','calls','latency_seconds')})
+            )
             if not os.getenv('OPENAI_API_KEY', '').strip():
                 log.error('OPENAI_API_KEY missing in this Vercel deployment')
                 return self.respond(503, {'error': 'Server API key is not configured. Check Vercel environment variables and redeploy.'})
